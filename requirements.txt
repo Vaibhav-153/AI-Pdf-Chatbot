@@ -1,0 +1,32 @@
+ # Core Framework
+streamlit
+
+# LangChain and Google Gemini Integration
+langchain
+langchain-core
+langchain-community
+langchain-google-genai
+google-generativeai
+
+# Vector Store and Embeddings
+faiss-cpu # Use faiss-gpu if you have a compatible NVIDIA GPU
+sentence-transformers # For open-source embedding models and rerankers
+tiktoken # Tokenizer used by LangChain
+
+# PDF and Data Handling
+PyPDF2
+pandas # For exporting chat history
+
+# Keyword Search (BM25)
+rank-bm25
+
+# Utility for Environment Variables
+python-dotenv
+
+# --- Optional Libraries for Unique Add-ons ---
+# For Voice-Based Chat
+# SpeechRecognition
+# gTTS
+# pyttsx3
+streamlit-mic-recorder
+fpdf2
