@@ -1,35 +1,23 @@
- # Core Framework
+# requirements.txt
+
+# Core Framework
 streamlit
 
-# LangChain and Google Gemini Integration
+# LangChain & AI Services
 langchain
 langchain-core
 langchain-community
 langchain-google-genai
 google-generativeai
+langchain_cohere
+cohere
 
-# Vector Store and Embeddings
-faiss-cpu # Use faiss-gpu if you have a compatible NVIDIA GPU
-sentence-transformers # For open-source embedding models and rerankers
-tiktoken # Tokenizer used by LangChain
+# Vector Store, Embeddings & Search
+faiss-cpu
+rank_bm25
 
-# PDF and Data Handling
-PyPDF2
-pandas # For exporting chat history
-
-# Keyword Search (BM25)
-rank-bm25
-
-# Utility for Environment Variables
-python-dotenv
-
-# --- Optional Libraries for Unique Add-ons ---
-# For Voice-Based Chat
-# SpeechRecognition
-# gTTS
-# pyttsx3
-streamlit-mic-recorder
-fpdf2
-fitz
-docx
-pptx
+# Document Parsing
+PyMuPDF # For PDF processing, 'fitz' is the import name [5, 9, 11]
+python-docx # For .docx files [1, 7, 12]
+python-pptx # For .pptx files [2, 4, 6]
+mammoth # For converting .docx to HTML for display [8, 10]
