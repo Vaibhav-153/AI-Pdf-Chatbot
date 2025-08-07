@@ -10,8 +10,8 @@ The application leverages a state-of-the-art Retrieval-Augmented Generation (RAG
 
 ## 📸 Application Preview
 
-![ManthanAI Screenshot](image.png)
 <img width="1919" height="977" alt="image" src="https://github.com/user-attachments/assets/751d9a30-f1fd-4171-b28b-723e6dc5fc2b" />
+![ManthanAI Screenshot](image.png)
 
 
 ## ✨ Key Features
