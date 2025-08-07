@@ -30,3 +30,6 @@ python-dotenv
 # pyttsx3
 streamlit-mic-recorder
 fpdf2
+fitz
+docx
+pptx

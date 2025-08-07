@@ -1,57 +1,27 @@
 # pdf_chatbot/backend/ingestion.py
 
 """
-Module for data ingestion from PDF documents.
+Module for robust data ingestion from various document formats.
 
-Handles the initial step of the RAG pipeline: extracting raw text and
-metadata from uploaded PDF files. This is critical for Rule #2 (Semantic Search)
-and Rule #3 (Multi-PDF Handling), as it preserves the source of every
-piece of information for later citation.
+This upgraded module handles the initial step of the RAG pipeline: extracting 
+raw text and metadata from uploaded files. It now supports PDF, DOCX, and PPTX formats.
+
+Key Improvements:
+1.  Uses PyMuPDF (fitz) for superior and faster PDF text extraction.
+2.  Adds support for DOCX (Microsoft Word) and PPTX (Microsoft PowerPoint).
+3.  A central dispatcher function `process_uploaded_files` routes files to the correct parser.
+4.  Maintains metadata (source filename, page/slide number) for accurate citations.
 """
 
 import os
-from PyPDF2 import PdfReader
+import fitz  # PyMuPDF
+import docx
+from pptx import Presentation
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from typing import List, Union
+from typing import List, BinaryIO, Tuple
 from langchain_core.documents import Document
 
-def get_pdf_text_and_metadata(pdf_docs: List[Union[str, any]]) -> List[Document]:
-    """
-    Extracts text and structured metadata from a list of PDF files.
-
-    Each page of each PDF is treated as a separate Document object, containing
-    the page's content and a metadata dictionary with the source filename and
-    page number.
-
-    Args:
-        pdf_docs: A list of uploaded file objects (from Streamlit) or file paths.
-
-    Returns:
-        A list of LangChain Document objects, one for each page of the PDFs.
-    """
-    documents = []
-    for pdf in pdf_docs:
-        if pdf is None:
-            continue
-        
-        is_file_path = isinstance(pdf, str)
-        try:
-            pdf_reader = PdfReader(pdf)
-            source_name = os.path.basename(pdf) if is_file_path else pdf.name
-
-            for page_num, page in enumerate(pdf_reader.pages):
-                text = page.extract_text()
-                if text:  # Ensure there is text on the page
-                    documents.append(Document(
-                        page_content=text,
-                        metadata={'source': source_name, 'page': page_num + 1}
-                    ))
-        except Exception as e:
-            pdf_name = os.path.basename(pdf) if is_file_path else getattr(pdf, 'name', 'Unknown File')
-            print(f"Error reading or processing PDF '{pdf_name}': {e}")
-            continue
-    return documents
-
+# --- Text Chunking ---
 
 def get_text_chunks(documents: List[Document]) -> List[Document]:
     """
@@ -62,14 +32,112 @@ def get_text_chunks(documents: List[Document]) -> List[Document]:
     The metadata from the parent document is automatically preserved in each chunk.
 
     Args:
-        documents: A list of Document objects (typically from get_pdf_text_and_metadata).
+        documents: A list of Document objects (from the parsing functions).
 
     Returns:
         A list of smaller Document chunks, ready for embedding.
     """
     text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1200,  # Increased for potentially denser academic text
-        chunk_overlap=250   # Overlap helps maintain context between chunks
+        # The size of each text chunk. 1000 characters is a balanced choice.
+        chunk_size=1000,
+        # How many characters to overlap between chunks. This helps maintain
+        # context so that a topic isn't split awkwardly between two chunks.
+        chunk_overlap=200,
+        length_function=len
     )
     chunks = text_splitter.split_documents(documents)
     return chunks
+
+# --- Document Parsers ---
+
+def _parse_pdf(file_stream: BinaryIO, filename: str) -> List[Document]:
+    """Extracts text from a PDF file stream using PyMuPDF."""
+    documents = []
+    try:
+        with fitz.open(stream=file_stream, filetype="pdf") as doc:
+            for page_num, page in enumerate(doc):
+                text = page.get_text()
+                if text:  # Ensure the page has text content
+                    documents.append(Document(
+                        page_content=text,
+                        metadata={'source': filename, 'page': page_num + 1}
+                    ))
+    except Exception as e:
+        print(f"Error parsing PDF '{filename}': {e}")
+    return documents
+
+def _parse_docx(file_stream: BinaryIO, filename: str) -> List[Document]:
+    """Extracts text from a DOCX file stream."""
+    documents = []
+    try:
+        doc = docx.Document(file_stream)
+        full_text = "\n".join([para.text for para in doc.paragraphs if para.text])
+        if full_text:
+            # For DOCX, we treat the whole file as one document initially
+            documents.append(Document(
+                page_content=full_text,
+                metadata={'source': filename}
+            ))
+    except Exception as e:
+        print(f"Error parsing DOCX '{filename}': {e}")
+    return documents
+
+def _parse_pptx(file_stream: BinaryIO, filename: str) -> List[Document]:
+    """Extracts text from a PPTX file stream."""
+    documents = []
+    try:
+        presentation = Presentation(file_stream)
+        for slide_num, slide in enumerate(presentation.slides):
+            slide_text = ""
+            for shape in slide.shapes:
+                if hasattr(shape, "text"):
+                    slide_text += shape.text + "\n"
+            
+            if slide_text.strip():
+                documents.append(Document(
+                    page_content=slide_text,
+                    metadata={'source': filename, 'slide': slide_num + 1}
+                ))
+    except Exception as e:
+        print(f"Error parsing PPTX '{filename}': {e}")
+    return documents
+
+# --- Main Ingestion Dispatcher ---
+
+def process_uploaded_files(uploaded_files: List[BinaryIO]) -> List[Document]:
+    """
+    Processes a list of uploaded files, dispatching them to the correct parser.
+
+    Args:
+        uploaded_files: A list of uploaded file objects from Streamlit,
+                        each having a 'name' and 'getvalue()' attribute.
+
+    Returns:
+        A list of LangChain Document objects, one for each page/slide/document.
+    """
+    all_documents = []
+    if not uploaded_files:
+        return all_documents
+
+    for file_stream in uploaded_files:
+        if file_stream is None:
+            continue
+
+        filename = file_stream.name
+        file_extension = os.path.splitext(filename)[1].lower()
+        
+        # Reset stream position to the beginning before reading
+        file_stream.seek(0)
+        
+        # Route to the appropriate parser based on file extension
+        if file_extension == '.pdf':
+            all_documents.extend(_parse_pdf(file_stream, filename))
+        elif file_extension == '.docx':
+            all_documents.extend(_parse_docx(file_stream, filename))
+        elif file_extension == '.pptx':
+            all_documents.extend(_parse_pptx(file_stream, filename))
+        else:
+            print(f"Warning: Unsupported file type '{file_extension}' for file '{filename}'. Skipping.")
+            continue
+            
+    return all_documents

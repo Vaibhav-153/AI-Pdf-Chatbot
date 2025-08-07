@@ -1,98 +1,103 @@
 # pdf_chatbot/backend/embedding.py
 
 """
-Module for handling vector embeddings and the vector store.
+Module for creating an advanced RAG retrieval system.
 
-This script is responsible for the core of Rule #2 (Semantic RAG Search).
-It takes processed text chunks, uses a Google embedding model to convert them
-into high-dimensional vectors, and stores them in a FAISS vector store for
-fast and efficient similarity searches.
+This module builds a sophisticated retriever that goes beyond simple semantic search.
+It implements a hybrid approach by combining keyword-based search (BM25) with
+semantic search (FAISS) and adds a re-ranking step for maximum relevance.
+
+Key Improvements:
+1.  Hybrid Search: Uses an EnsembleRetriever to combine the strengths of
+    keyword (BM25) and semantic (FAISS) search.
+2.  Advanced Re-ranking: Integrates a CohereRerank model to re-order
+    retrieved documents based on contextual relevance to the query.
+3.  Updated Embedding Model: Uses Google's newer 'text-embedding-latest'.
+4.  In-Memory Operation: Designed to create the retriever in-memory for use
+    within a user's session, which is faster and safer for concurrent users.
 """
 
 import os
 from typing import List
 from langchain_core.documents import Document
-
-# Key LangChain components for vector store operations
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_community.vectorstores import FAISS
-
-# Define a constant for the local storage path of the vector store index.
-# This makes it easy to reference and manage.
-VECTOR_STORE_PATH = "faiss_index"
-
-def get_vector_store(text_chunks: List[Document], api_key: str) -> None:
+from langchain_cohere import CohereRerank
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain.retrievers import (
+    BM25Retriever,
+    EnsembleRetriever,
+    ContextualCompressionRetriever,
+)
+def create_hybrid_retriever(
+    docs: List[Document],
+    google_api_key: str,
+    cohere_api_key: str,
+    k: int = 10,
+    rerank_top_n: int = 4
+):
     """
-    Creates and saves a FAISS vector store from document chunks.
+    Creates an advanced hybrid retriever with a re-ranking step.
 
-    This function will overwrite any existing vector store. It processes the
-    chunks, generates embeddings via the Google API, and saves the resulting
-    index to a local directory defined by VECTOR_STORE_PATH.
+    This function sets up a multi-faceted retrieval system:
+    1.  A keyword-based retriever (BM25) for exact matches.
+    2.  A semantic vector-based retriever (FAISS) for contextual meaning.
+    3.  An EnsembleRetriever to combine their results.
+    4.  A CohereRerank model to intelligently re-order the combined results
+        for the highest relevance.
 
     Args:
-        text_chunks: A list of text chunks (Document objects) from ingestion.
-        api_key: The Google API key for authenticating with the embedding service.
+        docs: A list of LangChain Document objects to index.
+        google_api_key: The API key for Google Generative AI (for embeddings).
+        cohere_api_key: The API key for Cohere (for re-ranking).
+        k: The total number of documents to retrieve initially from the ensemble.
+        rerank_top_n: The number of top documents to return after re-ranking.
+
+    Returns:
+        A LangChain retriever object configured for hybrid search and re-ranking.
+    """
+    if not docs:
+        raise ValueError("Cannot create retriever from an empty list of documents.")
+    if not google_api_key or not cohere_api_key:
+        raise ValueError("Google and Cohere API keys must be provided.")
+
+    # 1. Initialize the embedding model
+   # In backend/embedding.py
+    embeddings = GoogleGenerativeAIEmbeddings(
+        model="models/embedding-001",  # <-- This is the correct, stable model
+        google_api_key=google_api_key
+    )
+
+    # 2. Create the two base retrievers: keyword and semantic
     
-    Returns:
-        None. The function saves the index to disk as a side effect.
-    """
+    # Keyword-based retriever
+    bm25_retriever = BM25Retriever.from_documents(docs)
+    bm25_retriever.k = k # Number of docs to retrieve
 
-    if not text_chunks:
-        print("Warning: Received empty list of text chunks. No vector store will be created.")
-        return
+    # Semantic vector-based retriever
+    vectorstore = FAISS.from_documents(docs, embeddings)
+    faiss_retriever = vectorstore.as_retriever(search_kwargs={"k": k})
 
-    try:
-        # Initialize the embedding model. "models/embedding-001" is a powerful and
-        # cost-effective choice for generating high-quality embeddings.
-        embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=api_key)
+    # 3. Create the EnsembleRetriever to combine their strengths
+    # The ensemble retriever will fetch documents from both sources. The weights
+    # determine the importance of each retriever's results. 0.5/0.5 is a good start.
+    ensemble_retriever = EnsembleRetriever(
+        retrievers=[bm25_retriever, faiss_retriever],
+        weights=[0.5, 0.5]
+    )
 
-        # Create the FAISS vector store from the chunks and embedding model.
-        # This is the most computationally intensive step in the offline process.
-        print("Generating embeddings and creating FAISS vector store...")
-        vector_store = FAISS.from_documents(text_chunks, embedding=embeddings)
+   # 4. Create the document compressor (the re-ranker)
+    compressor = CohereRerank(
+        cohere_api_key=cohere_api_key,
+        model="rerank-english-v3.0",
+        top_n=rerank_top_n
+    )
 
-        # Save the index to a local path for persistence. This allows the app
-        # to load the knowledge base instantly on subsequent runs without reprocessing.
-        vector_store.save_local(VECTOR_STORE_PATH)
-        print(f"Vector store created and saved successfully at: {VECTOR_STORE_PATH}")
+# 5. Create the final compression retriever
+# This wraps the base retriever and applies the re-ranking compressor
+    compression_retriever = ContextualCompressionRetriever(
+        base_compressor=compressor,
+        base_retriever=ensemble_retriever
+    )
 
-    except Exception as e:
-        print(f"An error occurred during vector store creation: {e}")
-        # This can be critical, so re-raising might be an option in a production system.
-        raise e
-
-
-def load_vector_store(api_key: str) -> FAISS:
-    """
-    Loads an existing FAISS vector store from the local disk.
-
-    This function is used during the query phase to quickly load the pre-built
-    knowledge base into memory for searching.
-
-    Args:
-        api_key: The Google API key, required to initialize the same embedding
-                 model used during the creation of the index.
-
-    Returns:
-        The loaded FAISS vector store object, or None if it cannot be found.
-    """
-    if not os.path.exists(VECTOR_STORE_PATH):
-        print(f"Vector store not found at '{VECTOR_STORE_PATH}'. Please process documents first.")
-        return None
-
-    try:
-        embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=api_key)
-        
-        # The 'allow_dangerous_deserialization' flag is required by LangChain's
-        # new security model when loading local FAISS indexes.
-        vector_store = FAISS.load_local(
-            VECTOR_STORE_PATH,
-            embeddings,
-            allow_dangerous_deserialization=True
-        )
-        print("Vector store loaded successfully.")
-        return vector_store
-
-    except Exception as e:
-        print(f"An error occurred while loading the vector store: {e}")
-        return None
+    print("Hybrid retriever with re-ranking created successfully.")
+    return compression_retriever

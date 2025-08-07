@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ManthanAI Prototype</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom scrollbar for a cleaner look */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #888; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555; }
+    </style>
+</head>
+<body class="bg-slate-100 font-sans">
+    <div class="flex h-screen">
+        <aside class="w-1/3 max-w-sm h-full bg-slate-50 border-r border-slate-200 flex flex-col p-6">
+            <div class="flex items-center gap-3 mb-6">
+                <span class="text-3xl">🧠</span>
+                <div>
+                    <h1 class="text-xl font-bold text-slate-800">ManthanAI</h1>
+                    <p class="text-xs text-slate-500 italic">Where Your Documents Reveal Their Wisdom.</p>
+                </div>
+            </div>
+
+            <div id="upload-section">
+                <h2 class="text-sm font-semibold text-slate-600 mb-2">1. Upload Documents</h2>
+                <div id="drop-zone" class="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center cursor-pointer hover:border-indigo-500 hover:bg-indigo-50 transition-colors">
+                    <p class="text-slate-500">Drag & drop files here, or click to select</p>
+                    <p class="text-xs text-slate-400 mt-1">PDF, DOCX, PPTX supported</p>
+                </div>
+                <input type="file" id="file-input" multiple class="hidden">
+                <div id="file-list" class="mt-4 space-y-2"></div>
+            </div>
+
+            <hr class="my-6 border-t border-slate-200">
+
+            <div>
+                <h2 class="text-sm font-semibold text-slate-600 mb-2">2. Document Tools</h2>
+                <div class="space-y-2">
+                    <button id="summarize-btn" disabled class="w-full bg-white text-slate-700 py-2 px-4 rounded-md border border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-100 flex items-center justify-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" /></svg>
+                        Summarize
+                    </button>
+                    <button id="mom-btn" disabled class="w-full bg-white text-slate-700 py-2 px-4 rounded-md border border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-100 flex items-center justify-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
+                        Generate MOM
+                    </button>
+                </div>
+            </div>
+            
+            <div class="mt-auto">
+                 <button id="clear-session-btn" class="w-full bg-red-500 text-white py-2 px-4 rounded-md hover:bg-red-600 flex items-center justify-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    Clear Session
+                </button>
+            </div>
+        </aside>
+
+        <main class="flex-1 flex flex-col h-full">
+            <header class="bg-white border-b border-slate-200 p-4">
+                <h2 class="text-lg font-semibold text-slate-700">💬 Chat with ManthanAI</h2>
+            </header>
+            
+            <div id="chat-window" class="flex-1 p-6 space-y-4 overflow-y-auto">
+                </div>
+
+            <div class="p-4 bg-white border-t border-slate-200">
+                <form id="chat-form" class="flex items-center gap-3">
+                    <input type="text" id="chat-input" placeholder="Ask any question about your documents..." class="flex-1 w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <button type="submit" class="bg-indigo-600 text-white rounded-lg p-2 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7" /></svg>
+                    </button>
+                </form>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const dropZone = document.getElementById('drop-zone');
+            const fileInput = document.getElementById('file-input');
+            const fileList = document.getElementById('file-list');
+            const summarizeBtn = document.getElementById('summarize-btn');
+            const momBtn = document.getElementById('mom-btn');
+            const chatWindow = document.getElementById('chat-window');
+            const chatForm = document.getElementById('chat-form');
+            const chatInput = document.getElementById('chat-input');
+            const clearSessionBtn = document.getElementById('clear-session-btn');
+
+            const initialState = {
+                files: [],
+                chatHistory: [
+                    { sender: 'ai', message: "Hello! I am ManthanAI. Upload documents to get started." }
+                ]
+            };
+            let state = { ...initialState };
+
+            const render = () => {
+                // Render file list
+                fileList.innerHTML = '';
+                state.files.forEach(file => {
+                    const fileElement = document.createElement('div');
+                    fileElement.className = 'flex items-center gap-2 bg-white p-2 rounded-md border border-slate-200 text-sm';
+                    fileElement.innerHTML = `
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                        <span class="text-slate-700 truncate">${file.name}</span>
+                    `;
+                    fileList.appendChild(fileElement);
+                });
+
+                // Enable/disable buttons
+                const filesUploaded = state.files.length > 0;
+                summarizeBtn.disabled = !filesUploaded;
+                momBtn.disabled = !filesUploaded;
+
+                // Render chat history
+                chatWindow.innerHTML = '';
+                state.chatHistory.forEach(msg => addMessageToChat(msg.sender, msg.message, false));
+                chatWindow.scrollTop = chatWindow.scrollHeight;
+            };
+            
+            const addMessageToChat = (sender, message, save = true) => {
+                if (save) {
+                    state.chatHistory.push({ sender, message });
+                }
+                const msgElement = document.createElement('div');
+                msgElement.className = `flex gap-3 items-start ${sender === 'user' ? 'justify-end' : ''}`;
+                
+                const bubbleClass = sender === 'ai' 
+                    ? 'bg-white text-slate-800 border border-slate-200' 
+                    : 'bg-indigo-600 text-white';
+
+                const avatar = sender === 'ai' 
+                    ? `<div class="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-lg">🧠</div>` 
+                    : `<div class="w-8 h-8 rounded-full bg-indigo-200 flex items-center justify-center text-indigo-700 font-semibold">U</div>`;
+
+                const messageContent = `<div class="max-w-xl p-3 rounded-lg ${bubbleClass}">${message}</div>`;
+                
+                msgElement.innerHTML = sender === 'ai'
+                    ? `${avatar}${messageContent}`
+                    : `${messageContent}${avatar}`;
+
+                chatWindow.appendChild(msgElement);
+                chatWindow.scrollTop = chatWindow.scrollHeight;
+            };
+
+            const simulateAiResponse = (userInput) => {
+                addMessageToChat('ai', '<div class="italic text-slate-500">ManthanAI is thinking...</div>', false);
+                
+                setTimeout(() => {
+                    chatWindow.removeChild(chatWindow.lastChild); // Remove typing indicator
+                    let aiResponse = '';
+                    if (userInput.toLowerCase().includes('summary') || userInput.toLowerCase().includes('summarize')) {
+                        aiResponse = `### 📚 Document Summary
+                        <p class="mt-2">The central theme across the documents is the strategic shift towards renewable energy sources. Key findings indicate a 25% increase in solar energy adoption and a projected 40% reduction in carbon emissions by 2030. The primary challenge identified is the initial capital investment for infrastructure.</p>`;
+                    } else {
+                        aiResponse = `
+                            Based on the document "Q2_Financial_Report.pdf", the company's net profit increased by 15% year-over-year. This growth was primarily driven by the new product line launched in the first quarter.
+                            <div class="mt-4">
+                                <details class="bg-slate-50 p-2 rounded-md border border-slate-200 cursor-pointer">
+                                    <summary class="text-sm font-semibold text-slate-600">View Sources</summary>
+                                    <div class="mt-2 text-sm text-slate-500 p-2 border-t border-slate-200">
+                                        <p class="font-bold">Source: Q2_Financial_Report.pdf, Page: 5</p>
+                                        <p class="italic mt-1">"...the aforementioned 15% increase in net profit can be directly attributed to the successful market penetration of our 'Project Phoenix' initiative..."</p>
+                                    </div>
+                                </details>
+                            </div>
+                        `;
+                    }
+                    addMessageToChat('ai', aiResponse);
+                }, 1500);
+            };
+
+            // Event Listeners
+            dropZone.addEventListener('click', () => fileInput.click());
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('border-indigo-500');
+            });
+            dropZone.addEventListener('dragleave', () => {
+                dropZone.classList.remove('border-indigo-500');
+            });
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('border-indigo-500');
+                if (e.dataTransfer.files.length) {
+                    state.files = Array.from(e.dataTransfer.files);
+                    render();
+                    addMessageToChat('ai', `Your documents are ready. Ask me anything!`);
+                }
+            });
+            fileInput.addEventListener('change', (e) => {
+                if (fileInput.files.length) {
+                    state.files = Array.from(fileInput.files);
+                    render();
+                    addMessageToChat('ai', `Your documents are ready. Ask me anything!`);
+                }
+            });
+
+            chatForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const userInput = chatInput.value.trim();
+                if (!userInput) return;
+                if(state.files.length === 0) {
+                    alert("Please upload a document first.");
+                    return;
+                }
+                
+                addMessageToChat('user', userInput);
+                chatInput.value = '';
+                simulateAiResponse(userInput);
+            });
+            
+            summarizeBtn.addEventListener('click', () => {
+                const summary = `### 📚 Document Summary
+                <p class="mt-2">This is a simulated summary of all uploaded documents. The analysis highlights a consistent upward trend in market share and identifies key areas for future growth and investment based on the provided data.</p>`;
+                addMessageToChat('ai', summary);
+            });
+            
+            momBtn.addEventListener('click', () => {
+                const mom = `### 📝 Meeting Minutes
+                <ul class="list-disc list-inside mt-2 space-y-1">
+                    <li><b>Decisions:</b> The proposal for Project Alpha has been approved.</li>
+                    <li><b>Action Item:</b> John Doe to finalize the budget by next Friday.</li>
+                    <li><b>Action Item:</b> Jane Smith to schedule the kickoff meeting.</li>
+                </ul>`;
+                addMessageToChat('ai', mom);
+            });
+
+            clearSessionBtn.addEventListener('click', () => {
+                state = { 
+                    files: [], 
+                    chatHistory: [{ sender: 'ai', message: "Session cleared. Please upload new documents to begin." }]
+                };
+                render();
+            });
+
+            // Initial render
+            render();
+        });
+    </script>
+</body>
+</html>
