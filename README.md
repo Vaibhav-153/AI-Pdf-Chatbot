@@ -1,6 +1,6 @@
 # ManthanAI: Your AI Document Analyst 🤖 
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://your-app-url.streamlit.app/) <-- **REPLACE THIS URL AFTER DEPLOYMENT**
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://manthan-ai.streamlit.app/) 
 
 ManthanAI is a sophisticated, AI-powered chat application that allows you to have intelligent conversations with your documents. Upload PDFs, DOCX files, or PPTX presentations, and get accurate, context-aware answers instantly.
 
