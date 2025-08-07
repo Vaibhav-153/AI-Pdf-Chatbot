@@ -1,4 +1,3 @@
-
 # ManthanAI: Your AI Document Analyst 🤖 
 
 [![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://your-app-url.streamlit.app/) <-- **REPLACE THIS URL AFTER DEPLOYMENT**
